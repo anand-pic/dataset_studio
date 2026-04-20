@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dataset Studio</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-copy-block">
+          <p class="eyebrow">Dataset Studio</p>
+          <h1>Merge run exports into working datasets and curate what lands.</h1>
+          <p class="hero-copy">
+            This MVP keeps <code>shelf_mini</code> untouched. Use it to stage a merge,
+            remap unknowns, then inspect and clean up each class after import.
+          </p>
+        </div>
+        <div class="hero-actions">
+          <div class="view-switch" role="tablist" aria-label="Dataset Studio Pages">
+            <button id="nav-merge" class="view-tab is-active" type="button">Merge</button>
+            <button id="nav-browse" class="view-tab" type="button">Browse Target</button>
+            <button id="nav-export" class="view-tab" type="button">Export</button>
+          </div>
+          <button id="btn-refresh-discovery" class="ghost-button">Refresh Discovery</button>
+        </div>
+      </header>
+
+      <section id="page-merge" class="page-view">
+        <section class="merge-config-grid">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Merge Setup</h2>
+              <span id="status-pill" class="status-pill">Idle</span>
+            </div>
+
+            <label class="field">
+              <span>Target working dataset</span>
+              <input
+                id="target-path"
+                type="text"
+                value="/workspace/vdata/dessert_poc/recognition_dataset_combined_711_whiskey"
+                placeholder="/workspace/vdata/dessert_poc/recognition_dataset_combined_711_whiskey"
+              />
+            </label>
+
+            <label class="field">
+              <span>Source recognition export</span>
+              <input
+                id="source-path"
+                type="text"
+                value="/workspace/vdata/victor/runs/run_20260415_97e0/outputs/recognition_dataset/sort_20260415_a7ca"
+                placeholder="/workspace/vdata/victor/runs/.../outputs/recognition_dataset/sort_..."
+              />
+            </label>
+
+            <div class="button-row">
+              <button id="btn-scan-target" class="secondary-button">Scan Target</button>
+              <button id="btn-preview-merge" class="primary-button">Build Merge Preview</button>
+              <button id="btn-commit-merge" class="accent-button" disabled>Commit Merge</button>
+              <button id="btn-open-browser" class="ghost-button" disabled>Open Target Browser</button>
+            </div>
+
+            <div id="merge-summary" class="summary-grid"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Detected Datasets</h2>
+              <span id="discovery-count" class="muted-pill">0</span>
+            </div>
+            <div class="discovery-columns">
+              <div class="discovery-column">
+                <h3>Working</h3>
+                <div id="working-datasets" class="dataset-list empty-state">No datasets loaded yet.</div>
+              </div>
+              <div class="discovery-column">
+                <h3>Exports</h3>
+                <div id="recognition-exports" class="dataset-list empty-state">No exports loaded yet.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="merge-preview-grid">
+          <div class="panel merge-preview-panel">
+            <div class="panel-header">
+              <h2>Merge Preview</h2>
+              <span id="mapping-count" class="muted-pill">0 classes</span>
+            </div>
+            <div class="table-actions">
+              <div class="merge-filter-row">
+                <button id="merge-filter-all" class="merge-filter-chip is-active" type="button">All</button>
+                <button id="merge-filter-source-only" class="merge-filter-chip" type="button">New Products</button>
+                <button id="merge-filter-existing" class="merge-filter-chip" type="button">Existing</button>
+                <button id="merge-filter-placeholders" class="merge-filter-chip" type="button">Placeholders</button>
+              </div>
+              <button id="btn-default-mappings" class="ghost-button" disabled>Reset Suggestions</button>
+            </div>
+            <div id="merge-table-wrap" class="table-wrap empty-state">
+              Build a merge preview to review source classes and choose where they land.
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section id="page-browse" class="page-view hidden">
+        <section class="browse-header-row">
+          <div class="panel browse-summary-panel browse-summary-wide">
+            <div class="panel-header">
+              <h2>Target Browser</h2>
+              <span id="browse-target-pill" class="muted-pill">No target loaded</span>
+            </div>
+            <p id="browse-target-copy" class="panel-copy">
+              Scan a target dataset or complete a merge, then browse and curate the resulting classes here.
+            </p>
+            <div class="button-row">
+              <button id="btn-open-export" class="accent-button" disabled>Open Export to NPZ</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="browse-grid">
+          <div class="panel browser-panel">
+            <div class="panel-header">
+              <h2>Class Browser</h2>
+              <span id="browser-count" class="muted-pill">0 classes</span>
+            </div>
+            <label class="field tight">
+              <span>Search class</span>
+              <input id="class-search" type="text" placeholder="526650 or victor__unknown_001" />
+            </label>
+            <div class="browse-filter-row">
+              <button id="filter-all-classes" class="browse-filter-chip is-active" type="button">All Classes</button>
+              <button id="filter-merged-classes" class="browse-filter-chip" type="button">Merged Classes</button>
+              <button id="filter-new-products" class="browse-filter-chip" type="button">New Products</button>
+              <button id="filter-unknown-classes" class="browse-filter-chip" type="button">Unknowns</button>
+              <button id="filter-starred-classes" class="browse-filter-chip" type="button">Starred</button>
+              <span id="merged-class-count" class="muted-pill">0 merged</span>
+              <span id="new-product-count" class="muted-pill">0 new</span>
+              <span id="unknown-class-count" class="muted-pill">0 unknown</span>
+              <span id="starred-class-count" class="muted-pill">0 starred</span>
+            </div>
+            <div class="browser-sort-row">
+              <span class="sort-label">Sort by dataset size</span>
+              <button id="sort-size-desc" class="browse-filter-chip is-active" type="button">Largest First</button>
+              <button id="sort-size-asc" class="browse-filter-chip" type="button">Smallest First</button>
+            </div>
+            <div id="class-browser" class="class-browser empty-state">
+              Scan a target dataset to browse classes here.
+            </div>
+          </div>
+
+          <div class="panel detail-panel">
+            <div class="panel-header">
+              <h2>Class Detail</h2>
+              <span id="detail-pill" class="muted-pill">No class selected</span>
+            </div>
+            <div id="class-detail" class="class-detail empty-state">
+              Pick a class from the browser to inspect images and curate them.
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section id="page-export" class="page-view hidden">
+        <section class="browse-header-row">
+          <div class="panel export-summary-panel">
+            <div class="panel-header">
+              <h2>Export to NPZ</h2>
+              <span id="export-page-pill" class="muted-pill">Handpick train images</span>
+            </div>
+            <label class="field tight">
+              <span>Embedding model</span>
+              <input
+                id="export-model-path"
+                type="text"
+                value="/workspace/anand/models/recognition_models/checkpoints/dinov3b_dessert_v1/best_dinov3b_dessert_v1_classifier.pth"
+                placeholder="/workspace/anand/models/recognition_models/checkpoints/.../best_model.pth"
+              />
+            </label>
+            <label class="field tight">
+              <span>NPZ filename</span>
+              <input
+                id="export-output-filename"
+                type="text"
+                value="best_dinov3b_dessert_v1_classifier_gallery_20.npz"
+                placeholder="best_dinov3b_dessert_v1_classifier_gallery_20.npz"
+              />
+            </label>
+            <div class="browser-sort-row">
+              <span class="sort-label">Per-class limit</span>
+              <button id="export-limit-20" class="browse-filter-chip is-active" type="button">20</button>
+              <button id="export-limit-40" class="browse-filter-chip" type="button">40</button>
+            </div>
+            <p id="export-page-copy" class="panel-copy">
+              Handpick the train images you want per product, then export a gallery `.npz` into the dataset `db` folder.
+            </p>
+            <p id="export-output-copy" class="panel-copy">
+              Output: scan a target dataset to resolve the export path.
+            </p>
+            <div class="button-row">
+              <button id="btn-export-save-selection" class="ghost-button" disabled>Save Selection</button>
+              <button id="btn-export-random-all" class="secondary-button" disabled>Random Select All</button>
+              <button id="btn-export-clear-all" class="ghost-button" disabled>Clear All Selections</button>
+              <button id="btn-export-npz" class="accent-button" disabled>Export to NPZ</button>
+            </div>
+            <div id="export-run-status" class="export-status-panel empty-state">
+              Save a selection snapshot or run an export to see progress and results here.
+            </div>
+            <div id="export-summary-cards" class="summary-grid"></div>
+          </div>
+        </section>
+
+        <section class="browse-grid">
+          <div class="panel browser-panel">
+            <div class="panel-header">
+              <h2>Export Browser</h2>
+              <span id="export-browser-count" class="muted-pill">0 classes</span>
+            </div>
+            <label class="field tight">
+              <span>Search class</span>
+              <input id="export-class-search" type="text" placeholder="526650 or dessert_unknown_001" />
+            </label>
+            <div class="browse-filter-row">
+              <button id="export-filter-all-classes" class="browse-filter-chip is-active" type="button">All Classes</button>
+              <button id="export-filter-merged-classes" class="browse-filter-chip" type="button">Merged Classes</button>
+              <button id="export-filter-new-products" class="browse-filter-chip" type="button">New Products</button>
+              <button id="export-filter-unknown-classes" class="browse-filter-chip" type="button">Unknowns</button>
+              <button id="export-filter-starred-classes" class="browse-filter-chip" type="button">Starred</button>
+              <span id="export-merged-class-count" class="muted-pill">0 merged</span>
+              <span id="export-new-product-count" class="muted-pill">0 new</span>
+              <span id="export-unknown-class-count" class="muted-pill">0 unknown</span>
+              <span id="export-starred-class-count" class="muted-pill">0 starred</span>
+            </div>
+            <div class="browser-sort-row">
+              <span class="sort-label">Sort by train images</span>
+              <button id="export-sort-size-desc" class="browse-filter-chip is-active" type="button">Largest First</button>
+              <button id="export-sort-size-asc" class="browse-filter-chip" type="button">Smallest First</button>
+              <span id="export-customized-count" class="muted-pill">0 customized</span>
+              <span id="export-missing-count" class="muted-pill">0 missing</span>
+            </div>
+            <div id="export-class-browser" class="class-browser empty-state">
+              Scan a target dataset to handpick export images here.
+            </div>
+          </div>
+
+          <div class="panel detail-panel">
+            <div class="panel-header">
+              <div class="panel-header-group">
+                <h2>Handpick Images</h2>
+                <div class="mini-view-switch" role="tablist" aria-label="Handpick Image Views">
+                  <button id="export-detail-mode-all" class="mini-view-tab is-active" type="button">All Images</button>
+                  <button id="export-detail-mode-selected" class="mini-view-tab" type="button">Selected</button>
+                </div>
+              </div>
+              <span id="export-detail-pill" class="muted-pill">No class selected</span>
+            </div>
+            <div id="export-class-detail" class="class-detail empty-state">
+              Pick a class from the export browser to handpick its train images.
+            </div>
+          </div>
+        </section>
+      </section>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

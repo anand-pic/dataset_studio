@@ -1,0 +1,12 @@
+services:
+  dataset_studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dataset_studio
+    network_mode: host
+    volumes:
+      - /workspace/vdata:/workspace/vdata
+      - /workspace/anand/models:/workspace/anand/models
+      - ./.sessions:/app/.sessions
+    restart: unless-stopped
