@@ -32,7 +32,7 @@ class SessionService:
     def save_current_session_state(self, payload: dict[str, Any]) -> dict[str, Any]:
         session = self._get_or_create_current_session_raw()
         session["target_path"] = payload.get("target_path") or session.get("target_path") or DEFAULT_TARGET_PATH
-        session["source_path"] = payload.get("source_path") or session.get("source_path") or DEFAULT_SOURCE_PATH
+        session["source_path"] = payload.get("source_path") if payload.get("source_path") is not None else session.get("source_path") or DEFAULT_SOURCE_PATH
         session["preview"] = payload.get("preview")
         session["target_scan"] = payload.get("target_scan")
         session["selected_class"] = payload.get("selected_class")

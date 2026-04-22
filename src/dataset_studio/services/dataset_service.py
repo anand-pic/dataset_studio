@@ -21,6 +21,7 @@ SKIP_DISCOVERY_DIRS = {
     "artifacts",
     "catalog",
     "cvat",
+    "db",
     "import_zips",
     "labels",
     "manifests",
@@ -100,7 +101,7 @@ class DatasetService:
 
         files_by_split: Dict[str, List[Path]] = {}
         for split in self.available_splits(dataset_root):
-            class_dir = dataset_root / split / class_name
+            class_dir = self.split_dir(dataset_root, split) / class_name
             if not class_dir.is_dir():
                 continue
             files_by_split[split] = list(self._iter_image_files(class_dir))
@@ -113,7 +114,7 @@ class DatasetService:
         splits = []
         total = 0
         for split in self.available_splits(dataset_root):
-            class_dir = dataset_root / split / class_name
+            class_dir = self.split_dir(dataset_root, split) / class_name
             if not class_dir.is_dir():
                 continue
 
@@ -161,12 +162,12 @@ class DatasetService:
         touched = 0
         moved = 0
         for split in self.available_splits(dataset_root):
-            old_dir = dataset_root / split / old_name
+            old_dir = self.split_dir(dataset_root, split) / old_name
             if not old_dir.is_dir():
                 continue
             touched += 1
 
-            new_dir = dataset_root / split / new_name
+            new_dir = self.split_dir(dataset_root, split) / new_name
             if new_dir.exists():
                 new_dir.mkdir(parents=True, exist_ok=True)
                 for source_file in self._iter_image_files(old_dir):
@@ -275,25 +276,34 @@ class DatasetService:
         }
 
     def available_splits(self, dataset_root: Path) -> List[str]:
-        return [split for split in KNOWN_SPLITS if (dataset_root / split).is_dir()]
+        splits: List[str] = []
+        if self._has_root_train_layout(dataset_root):
+            splits.append("train")
+        for split in KNOWN_SPLITS:
+            if split == "train" and "train" in splits:
+                continue
+            if (dataset_root / split).is_dir():
+                splits.append(split)
+        return splits
 
     def looks_like_dataset_root(self, path: Path) -> bool:
         if not path.is_dir():
             return False
 
-        split_dirs = [path / split for split in KNOWN_SPLITS if (path / split).is_dir()]
-        if not split_dirs:
-            return False
-
-        for split_dir in split_dirs:
-            try:
-                children = [child for child in split_dir.iterdir() if child.is_dir()]
-            except PermissionError:
-                continue
-            class_children = [child for child in children if child.name not in {"images", "labels"}]
-            if class_children:
+        for split in self.available_splits(path):
+            split_dir = self.split_dir(path, split)
+            if any(True for _ in self._iter_class_dirs(split_dir, is_dataset_root=split == "train" and split_dir == path)):
                 return True
         return False
+
+    def split_dir(self, dataset_root: Path, split: str) -> Path:
+        split = self._validate_split(split)
+        explicit_dir = dataset_root / split
+        if explicit_dir.is_dir():
+            return explicit_dir
+        if split == "train":
+            return dataset_root
+        return explicit_dir
 
     def _scan_summary(self, root: Path) -> dict:
         summary = self._scan_full(root, include_class_entries=False)
@@ -308,13 +318,13 @@ class DatasetService:
 
     def _scan_full(self, root: Path, *, include_class_entries: bool = True) -> dict:
         class_map: Dict[str, dict] = {}
-        split_totals: Dict[str, int] = {}
+        split_totals: Dict[str, int] = {name: 0 for name in KNOWN_SPLITS}
         total_images = 0
 
         for split in self.available_splits(root):
             split_total = 0
-            split_dir = root / split
-            for class_dir in self._iter_class_dirs(split_dir):
+            split_dir = self.split_dir(root, split)
+            for class_dir in self._iter_class_dirs(split_dir, is_dataset_root=split == "train" and split_dir == root):
                 class_name = class_dir.name
                 file_count = 0
                 sample_path = None
@@ -357,11 +367,18 @@ class DatasetService:
             "classes": classes,
         }
 
-    def _iter_class_dirs(self, split_dir: Path) -> Iterable[Path]:
+    def _iter_class_dirs(self, split_dir: Path, *, is_dataset_root: bool = False) -> Iterable[Path]:
         if not split_dir.is_dir():
             return []
+        ignored_names = {"images", "labels"}
+        if is_dataset_root:
+            ignored_names = ignored_names | set(KNOWN_SPLITS) | SKIP_DISCOVERY_DIRS
         return sorted(
-            (child for child in split_dir.iterdir() if child.is_dir() and child.name not in {"images", "labels"}),
+            (
+                child
+                for child in split_dir.iterdir()
+                if child.is_dir() and not child.name.startswith(".") and child.name not in ignored_names
+            ),
             key=lambda p: self._class_sort_key(p.name),
         )
 
@@ -413,15 +430,17 @@ class DatasetService:
             raise HTTPException(status_code=400, detail="Image does not belong to the selected dataset.")
 
         parts = image_path.relative_to(dataset_root).parts
-        if len(parts) < 3:
-            raise HTTPException(status_code=400, detail="Image path is not inside a split/class directory.")
+        if len(parts) >= 3 and parts[0] in KNOWN_SPLITS:
+            current_split, current_class = parts[0], parts[1]
+            self._validate_split(current_split)
+            return image_path, current_split, current_class
+        if len(parts) >= 2 and self._has_root_train_layout(dataset_root):
+            return image_path, "train", parts[0]
 
-        current_split, current_class = parts[0], parts[1]
-        self._validate_split(current_split)
-        return image_path, current_split, current_class
+        raise HTTPException(status_code=400, detail="Image path is not inside a recognized class directory.")
 
     def _reassign_image_path(self, *, dataset_root: Path, image_path: Path, target_class: str, target_split: str) -> Path:
-        target_dir = dataset_root / target_split / target_class
+        target_dir = self.split_dir(dataset_root, target_split) / target_class
         target_dir.mkdir(parents=True, exist_ok=True)
         target_path = self._build_unique_path(target_dir / image_path.name)
         if target_path == image_path:
@@ -472,3 +491,14 @@ class DatasetService:
 
     def _timestamp_id(self) -> str:
         return datetime.utcnow().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
+
+    def _has_root_train_layout(self, dataset_root: Path) -> bool:
+        if not dataset_root.is_dir():
+            return False
+        explicit_train_dir = dataset_root / "train"
+        if explicit_train_dir.is_dir():
+            return False
+        try:
+            return any(True for _ in self._iter_class_dirs(dataset_root, is_dataset_root=True))
+        except PermissionError:
+            return False

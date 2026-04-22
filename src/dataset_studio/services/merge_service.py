@@ -19,8 +19,19 @@ class MergeService:
         self.dataset_service = dataset_service
 
     def build_preview(self, target_path: str, source_path: str) -> dict:
-        source_root = self.dataset_service.ensure_dataset_root(source_path)
         target_root = self.dataset_service.ensure_dataset_root(target_path, allow_missing=True)
+        normalized_source_path = (source_path or "").strip()
+        if not normalized_source_path:
+            target_scan = self._scan_target_for_preview(target_root)
+            return {
+                "mode": "target_only",
+                "source": None,
+                "target": target_scan,
+                "source_tag": None,
+                "mappings": [],
+            }
+
+        source_root = self.dataset_service.ensure_dataset_root(normalized_source_path)
 
         source_scan = self.dataset_service.scan_dataset(str(source_root))
         target_scan = self._scan_target_for_preview(target_root)
@@ -54,6 +65,7 @@ class MergeService:
             )
 
         return {
+            "mode": "merge",
             "source": source_scan,
             "target": target_scan,
             "source_tag": source_tag,

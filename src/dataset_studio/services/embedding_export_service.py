@@ -32,9 +32,9 @@ class EmbeddingExportService:
         selected_paths_by_class: dict[str, list[str]] | None = None,
     ) -> dict[str, Any]:
         dataset_root = self.dataset_service.ensure_dataset_root(raw_dataset_path)
-        train_dir = dataset_root / "train"
+        train_dir = self.dataset_service.split_dir(dataset_root, "train")
         if not train_dir.is_dir():
-            raise HTTPException(status_code=400, detail=f"Dataset is missing a train split: {train_dir}")
+            raise HTTPException(status_code=400, detail=f"Dataset is missing a usable train directory: {train_dir}")
 
         requested_model_path = self._resolve_workspace_path(raw_model_path)
         model_path = self._resolve_embedding_model_path(requested_model_path)
@@ -151,9 +151,9 @@ class EmbeddingExportService:
         selected_paths_by_class: dict[str, list[str]] | None = None,
     ) -> dict[str, Any]:
         dataset_root = self.dataset_service.ensure_dataset_root(raw_dataset_path)
-        train_dir = dataset_root / "train"
+        train_dir = self.dataset_service.split_dir(dataset_root, "train")
         if not train_dir.is_dir():
-            raise HTTPException(status_code=400, detail=f"Dataset is missing a train split: {train_dir}")
+            raise HTTPException(status_code=400, detail=f"Dataset is missing a usable train directory: {train_dir}")
         if per_class_limit <= 0:
             raise HTTPException(status_code=400, detail="Per-class export limit must be at least 1.")
 

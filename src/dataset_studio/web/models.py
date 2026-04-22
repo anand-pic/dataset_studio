@@ -8,7 +8,7 @@ class DatasetPathRequest(BaseModel):
 
 
 class MergePreviewRequest(BaseModel):
-    source_path: str = Field(..., min_length=1)
+    source_path: str = Field(default="")
     target_path: str = Field(..., min_length=1)
 
 

@@ -103,11 +103,12 @@ function inferredExportOutputPath() {
 function setBusy(isBusy, text = "Working") {
   state.busy = isBusy;
   setStatus(text);
+  const mergeReady = hasMergeMappings();
   el("btn-refresh-discovery").disabled = isBusy;
   el("btn-scan-target").disabled = isBusy;
   el("btn-preview-merge").disabled = isBusy;
-  el("btn-commit-merge").disabled = isBusy || !state.preview;
-  el("btn-default-mappings").disabled = isBusy || !state.preview;
+  el("btn-commit-merge").disabled = isBusy || !mergeReady;
+  el("btn-default-mappings").disabled = isBusy || !mergeReady;
   el("btn-open-browser").disabled = isBusy || !state.targetScan;
   if (el("btn-open-export")) {
     el("btn-open-export").disabled = isBusy || !state.targetScan;
@@ -166,11 +167,11 @@ async function loadCurrentSession() {
   const session = payload.session || {};
   state.sessionId = session.session_id || null;
 
-  if (session.target_path) {
-    el("target-path").value = session.target_path;
+  if (el("target-path")) {
+    el("target-path").value = session.target_path || "";
   }
-  if (session.source_path) {
-    el("source-path").value = session.source_path;
+  if (el("source-path")) {
+    el("source-path").value = session.source_path || "";
   }
 
   state.preview = session.preview || null;
@@ -336,6 +337,7 @@ function renderSummaryCards(source, target, preview = state.preview) {
   const wrap = el("merge-summary");
   const cards = [];
   const stats = previewStats(preview);
+  const isTargetOnly = preview?.mode === "target_only";
 
   if (target) {
     cards.push(
@@ -357,7 +359,18 @@ function renderSummaryCards(source, target, preview = state.preview) {
     );
   }
 
-  if (source || target) {
+  if (isTargetOnly) {
+    cards.push(
+      summaryCard({
+        label: "Mode",
+        value: "Target Only",
+        meta: "No merge source selected. Browse, curate, and export this dataset directly.",
+        tone: "highlight",
+      })
+    );
+  }
+
+  if (source) {
     cards.push(
       summaryCard({
         label: "Net Growth",
@@ -368,7 +381,7 @@ function renderSummaryCards(source, target, preview = state.preview) {
     );
   }
 
-  if (preview) {
+  if (preview && source) {
     cards.push(
       summaryCard({
         label: "Overlap",
@@ -415,6 +428,10 @@ function switchPage(page) {
 
 function classByName(className) {
   return state.targetScan?.classes?.find((item) => item.name === className) || null;
+}
+
+function hasMergeMappings(preview = state.preview) {
+  return Boolean(preview && Array.isArray(preview.mappings) && preview.mappings.length > 0);
 }
 
 function exportableClasses(dataset = state.targetScan) {
@@ -1138,7 +1155,7 @@ function filteredPreviewMappings(preview) {
 }
 
 function renderMergeFilters(preview) {
-  const hasPreview = Boolean(preview);
+  const hasPreview = hasMergeMappings(preview);
   const filterIds = [
     ["merge-filter-all", "all"],
     ["merge-filter-source-only", "source_only"],
@@ -1156,11 +1173,24 @@ function renderMergeFilters(preview) {
 function renderMergeTable() {
   const wrap = el("merge-table-wrap");
   const preview = state.preview;
+  const mergeReady = hasMergeMappings(preview);
+  el("btn-commit-merge").disabled = state.busy || !mergeReady;
+  el("btn-default-mappings").disabled = state.busy || !mergeReady;
   renderMergeFilters(preview);
   if (!preview) {
     wrap.className = "table-wrap empty-state";
     wrap.innerHTML = "Build a merge preview to review source classes and choose where they land.";
     el("mapping-count").textContent = "0 classes";
+    return;
+  }
+
+  if (!hasMergeMappings(preview)) {
+    wrap.className = "table-wrap empty-state";
+    wrap.innerHTML =
+      preview.mode === "target_only"
+        ? "No merge source selected. You can browse, edit, and export this target dataset directly."
+        : "No merge mappings are available for this preview.";
+    el("mapping-count").textContent = preview.mode === "target_only" ? "No merge" : "0 classes";
     return;
   }
 
@@ -1626,12 +1656,12 @@ async function scanTarget() {
 async function buildMergePreview() {
   const sourcePath = el("source-path").value.trim();
   const targetPath = el("target-path").value.trim();
-  if (!sourcePath || !targetPath) {
-    alert("Enter both source and target paths first.");
+  if (!targetPath) {
+    alert("Enter a target dataset path first.");
     return;
   }
 
-  setBusy(true, "Building merge preview");
+  setBusy(true, sourcePath ? "Building merge preview" : "Preparing target-only workspace");
   try {
     state.preview = await api("/api/merge/preview", {
       method: "POST",
@@ -1652,9 +1682,9 @@ async function buildMergePreview() {
     renderClassDetail();
     renderPageNav();
     saveDraftState({ immediate: true });
-    el("btn-commit-merge").disabled = false;
-    el("btn-default-mappings").disabled = false;
-    setStatus("Preview loaded");
+    el("btn-commit-merge").disabled = !hasMergeMappings(state.preview);
+    el("btn-default-mappings").disabled = !hasMergeMappings(state.preview);
+    setStatus(sourcePath ? "Preview loaded" : "Target-only mode ready");
   } catch (error) {
     alert(error.message);
     setStatus("Preview failed");
